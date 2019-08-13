@@ -172,6 +172,13 @@ void aead_aes_128_gcm(Context &ctx);
 int message_digest(uint8_t *res, const EVP_MD *meth, const uint8_t *data,
                    size_t len);
 
+// from_ossl_level translates |ossl_level| to ngtcp2_crypto_level.
+ngtcp2_crypto_level from_ossl_level(OSSL_ENCRYPTION_LEVEL ossl_level);
+
+// from_ngtcp2_level translates |crypto_level| to
+// OSSL_ENCRYPTION_LEVEL.
+OSSL_ENCRYPTION_LEVEL from_ngtcp2_level(ngtcp2_crypto_level crypto_level);
+
 } // namespace crypto
 
 } // namespace ngtcp2

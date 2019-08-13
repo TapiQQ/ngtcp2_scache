@@ -204,13 +204,11 @@ public:
   void signal_write();
   int handshake_completed();
 
-  void write_server_handshake(const uint8_t *data, size_t datalen);
-  void write_server_handshake(Crypto &crypto, const uint8_t *data,
-                              size_t datalen);
+  void write_server_handshake(ngtcp2_crypto_level crypto_level,
+                              const uint8_t *data, size_t datalen);
 
-  size_t read_client_handshake(uint8_t *buf, size_t buflen);
-  int write_client_handshake(ngtcp2_crypto_level crypto_level,
-                             const uint8_t *data, size_t datalen);
+  int recv_crypto_data(ngtcp2_crypto_level crypto_level, const uint8_t *data,
+                       size_t datalen);
 
   int recv_client_initial(const ngtcp2_cid *dcid);
   ssize_t hs_encrypt_data(uint8_t *dest, size_t destlen,
@@ -257,7 +255,8 @@ public:
   void update_endpoint(const ngtcp2_addr *addr);
   void update_remote_addr(const ngtcp2_addr *addr);
 
-  int on_key(int name, const uint8_t *secret, size_t secretlen);
+  int on_key(ngtcp2_crypto_level level, const uint8_t *rsecret,
+             const uint8_t *wsecret, size_t secretlen);
 
   void set_tls_alert(uint8_t alert);
 
@@ -291,11 +290,8 @@ private:
   ev_io wev_;
   ev_timer timer_;
   ev_timer rttimer_;
-  std::vector<uint8_t> chandshake_;
   size_t ncread_;
   Crypto crypto_[3];
-  ngtcp2_crypto_level tx_crypto_level_;
-  ngtcp2_crypto_level rx_crypto_level_;
   ngtcp2_conn *conn_;
   ngtcp2_cid scid_;
   ngtcp2_cid pscid_;

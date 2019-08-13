@@ -170,13 +170,11 @@ public:
   void schedule_retransmit();
   int handshake_completed();
 
-  void write_client_handshake(const uint8_t *data, size_t datalen);
-  void write_client_handshake(Crypto &crypto, const uint8_t *data,
+  void write_client_handshake(ngtcp2_crypto_level level, const uint8_t *data,
                               size_t datalen);
 
-  size_t read_server_handshake(uint8_t *buf, size_t buflen);
-  int write_server_handshake(ngtcp2_crypto_level crypto_level,
-                             const uint8_t *data, size_t datalen);
+  int recv_crypto_data(ngtcp2_crypto_level crypto_level, const uint8_t *data,
+                       size_t datalen);
 
   int setup_initial_crypto_context();
   ssize_t hs_encrypt_data(uint8_t *dest, size_t destlen,
@@ -218,7 +216,8 @@ public:
   void start_key_update_timer();
   void start_delay_stream_timer();
 
-  int on_key(int name, const uint8_t *secret, size_t secretlen);
+  int on_key(ngtcp2_crypto_level level, const uint8_t *rsecret,
+             const uint8_t *wsecret, size_t secretlen);
 
   void set_tls_alert(uint8_t alert);
 
@@ -256,12 +255,8 @@ private:
   int fd_;
   std::map<int64_t, std::unique_ptr<Stream>> streams_;
   Crypto crypto_[3];
-  ngtcp2_crypto_level tx_crypto_level_;
-  ngtcp2_crypto_level rx_crypto_level_;
-  std::vector<uint8_t> shandshake_;
   std::vector<uint8_t> tx_secret_;
   std::vector<uint8_t> rx_secret_;
-  size_t nsread_;
   ngtcp2_conn *conn_;
   nghttp3_conn *httpconn_;
   // addr_ is the server host address.
