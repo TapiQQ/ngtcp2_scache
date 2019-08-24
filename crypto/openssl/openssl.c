@@ -137,8 +137,8 @@ int ngtcp2_crypto_hkdf_extract(uint8_t *dest, size_t destlen,
   if (EVP_PKEY_derive_init(pctx) != 1 ||
       EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != 1 ||
       EVP_PKEY_CTX_set_hkdf_md(pctx, prf) != 1 ||
-      EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, saltlen) != 1 ||
-      EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, secretlen) != 1 ||
+      EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, (int)saltlen) != 1 ||
+      EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, (int)secretlen) != 1 ||
       EVP_PKEY_derive(pctx, dest, &destlen) != 1) {
     rv = -1;
   }
@@ -163,15 +163,15 @@ int ngtcp2_crypto_hkdf_expand(uint8_t *dest, size_t destlen,
       EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) != 1 ||
       EVP_PKEY_CTX_set_hkdf_md(pctx, prf) != 1 ||
       EVP_PKEY_CTX_set1_hkdf_salt(pctx, "", 0) != 1 ||
-      EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, secretlen) != 1 ||
-      EVP_PKEY_CTX_add1_hkdf_info(pctx, info, infolen) != 1 ||
+      EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, (int)secretlen) != 1 ||
+      EVP_PKEY_CTX_add1_hkdf_info(pctx, info, (int)infolen) != 1 ||
       EVP_PKEY_derive(pctx, dest, &destlen) != 1) {
     rv = -1;
   }
 
   EVP_PKEY_CTX_free(pctx);
 
-  return 0;
+  return rv;
 }
 
 int ngtcp2_crypto_encrypt(uint8_t *dest, ngtcp2_crypto_aead *aead,
@@ -277,5 +277,5 @@ int ngtcp2_crypto_hp_mask(uint8_t *dest, ngtcp2_crypto_cipher *hp,
 
   EVP_CIPHER_CTX_free(actx);
 
-  return 0;
+  return rv;
 }
