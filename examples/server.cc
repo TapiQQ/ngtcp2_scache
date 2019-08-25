@@ -1594,7 +1594,7 @@ int Handler::init(const Endpoint &ep, const sockaddr *sa, socklen_t salen,
     return -1;
   }
 
-  if (SSL_set_quic_transport_params(ssl_, buf.data() + 2, nwrite - 2) != 1) {
+  if (SSL_set_quic_transport_params(ssl_, buf.data(), nwrite) != 1) {
     std::cerr << "SSL_set_quic_transport_params failed" << std::endl;
     return -1;
   }

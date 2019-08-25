@@ -262,20 +262,15 @@ int Client::on_key(ngtcp2_crypto_level level, const uint8_t *rsecret,
   }
 
   if (level == NGTCP2_CRYPTO_LEVEL_APP) {
-    const uint8_t *raw_tp;
-    size_t raw_tplen;
-    std::array<uint8_t, 4096> tpbuf;
-    SSL_get_peer_quic_transport_params(ssl_, &raw_tp, &raw_tplen);
+    const uint8_t *tp;
+    size_t tplen;
 
-    tpbuf[0] = raw_tplen >> 8;
-    tpbuf[1] = raw_tplen;
-    memcpy(tpbuf.data() + 2, raw_tp, raw_tplen);
+    SSL_get_peer_quic_transport_params(ssl_, &tp, &tplen);
 
     ngtcp2_transport_params params;
 
     rv = ngtcp2_decode_transport_params(
-        &params, NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS,
-        tpbuf.data(), raw_tplen + 2);
+        &params, NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS, tp, tplen);
     if (rv != 0) {
       std::cerr << "ngtcp2_decode_transport_params: " << ngtcp2_strerror(rv)
                 << std::endl;
@@ -917,7 +912,7 @@ int Client::init_ssl() {
     return -1;
   }
 
-  if (SSL_set_quic_transport_params(ssl_, buf.data() + 2, nwrite - 2) != 1) {
+  if (SSL_set_quic_transport_params(ssl_, buf.data(), nwrite) != 1) {
     std::cerr << "SSL_set_quic_transport_params failed" << std::endl;
     return -1;
   }
