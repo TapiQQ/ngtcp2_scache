@@ -938,7 +938,12 @@ int Client::init_ssl() {
           std::cerr << "Could not set session" << std::endl;
         } else {
           resumption_ = true;
+
+          if (SSL_SESSION_get_max_early_data(session)) {
+            SSL_set_quic_early_data_enabled(ssl_, 1);
+          }
         }
+
         SSL_SESSION_free(session);
       }
     }
@@ -1165,28 +1170,6 @@ int Client::tls_handshake(bool initial) {
   ERR_clear_error();
 
   int rv;
-  /* Note that SSL_SESSION_get_max_early_data() and
-     SSL_get_max_early_data() return completely different value. */
-  if (initial && resumption_ &&
-      SSL_SESSION_get_max_early_data(SSL_get_session(ssl_))) {
-    size_t nwrite;
-    // OpenSSL returns error if SSL_write_early_data is called when
-    // resumption is not attempted.  Sending empty string is a trick
-    // to just early_data extension.
-    rv = SSL_write_early_data(ssl_, "", 0, &nwrite);
-    if (rv == 0) {
-      auto err = SSL_get_error(ssl_, rv);
-      switch (err) {
-      case SSL_ERROR_SSL:
-        std::cerr << "TLS handshake error: "
-                  << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
-        return -1;
-      default:
-        std::cerr << "TLS handshake error: " << err << std::endl;
-        return -1;
-      }
-    }
-  }
 
   rv = SSL_do_handshake(ssl_);
   if (rv <= 0) {

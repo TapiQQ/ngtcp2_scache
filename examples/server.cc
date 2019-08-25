@@ -1480,6 +1480,7 @@ int Handler::init(const Endpoint &ep, const sockaddr *sa, socklen_t salen,
   ssl_ = SSL_new(ssl_ctx_);
   SSL_set_app_data(ssl_, this);
   SSL_set_accept_state(ssl_);
+  SSL_set_quic_early_data_enabled(ssl_, 1);
 
   auto callbacks = ngtcp2_conn_callbacks{
       nullptr, // client_initial
@@ -1608,49 +1609,6 @@ int Handler::tls_handshake() {
   ERR_clear_error();
 
   int rv;
-
-  if (initial_) {
-    std::array<uint8_t, 8> buf;
-    size_t nread;
-    rv = SSL_read_early_data(ssl_, buf.data(), buf.size(), &nread);
-    initial_ = false;
-    switch (rv) {
-    case SSL_READ_EARLY_DATA_ERROR: {
-      if (!config.quiet) {
-        std::cerr << "SSL_READ_EARLY_DATA_ERROR" << std::endl;
-      }
-      auto err = SSL_get_error(ssl_, rv);
-      switch (err) {
-      case SSL_ERROR_WANT_READ:
-      case SSL_ERROR_WANT_WRITE: {
-        return 0;
-      }
-      case SSL_ERROR_SSL:
-        std::cerr << "TLS handshake error: "
-                  << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
-        return NGTCP2_ERR_CRYPTO;
-      default:
-        std::cerr << "TLS handshake error: " << err << std::endl;
-        return NGTCP2_ERR_CRYPTO;
-      }
-      break;
-    }
-    case SSL_READ_EARLY_DATA_SUCCESS:
-      if (!config.quiet) {
-        std::cerr << "SSL_READ_EARLY_DATA_SUCCESS" << std::endl;
-      }
-      // Reading 0-RTT data in TLS stream is a protocol violation.
-      if (nread > 0) {
-        return NGTCP2_ERR_PROTO;
-      }
-      break;
-    case SSL_READ_EARLY_DATA_FINISH:
-      if (!config.quiet) {
-        std::cerr << "SSL_READ_EARLY_DATA_FINISH" << std::endl;
-      }
-      break;
-    }
-  }
 
   rv = SSL_do_handshake(ssl_);
   if (rv <= 0) {
