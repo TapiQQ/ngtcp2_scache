@@ -757,7 +757,6 @@ Handler::Handler(struct ev_loop *loop, SSL_CTX *ssl_ctx, Server *server,
       sendbuf_{NGTCP2_MAX_PKTLEN_IPV4},
       last_error_{QUICErrorType::Transport, 0},
       nkey_update_(0),
-      initial_(true),
       draining_(false) {
   ev_io_init(&wev_, writecb, 0, EV_WRITE);
   wev_.data = this;

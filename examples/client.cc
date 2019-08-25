@@ -508,7 +508,7 @@ namespace {
 int client_initial(ngtcp2_conn *conn, void *user_data) {
   auto c = static_cast<Client *>(user_data);
 
-  if (c->tls_handshake(true) != 0) {
+  if (c->tls_handshake() != 0) {
     return NGTCP2_ERR_CALLBACK_FAILURE;
   }
 
@@ -1166,7 +1166,7 @@ int Client::setup_initial_crypto_context() {
   return 0;
 }
 
-int Client::tls_handshake(bool initial) {
+int Client::tls_handshake() {
   ERR_clear_error();
 
   int rv;

@@ -311,9 +311,6 @@ private:
   QUICError last_error_;
   // nkey_update_ is the number of key update occurred.
   size_t nkey_update_;
-  // initial_ is initially true, and used to process first packet from
-  // client specially.  After first packet, it becomes false.
-  bool initial_;
   // draining_ becomes true when draining period starts.
   bool draining_;
 };
