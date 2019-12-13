@@ -55,6 +55,24 @@
 #include "keylog.h"
 #include "template.h"
 
+//NEW STUFF
+
+void print_session_statistics(SSL_CTX *ctx)
+{
+        printf("Number of sessions in the internal session cache: %ld\n", SSL_CTX_sess_number(ctx));
+        printf("Number of started handhakes in client mode: %ld\n", SSL_CTX_sess_connect(ctx));
+        printf("Number of established sessions in client mode: %ld\n", SSL_CTX_sess_connect_good(ctx));
+        printf("Number of started renegotiations in client mode: %ld\n", SSL_CTX_sess_connect_renegotiate(ctx));
+        printf("Number of started SSL/TLS handshakes in server mode:%ld\n", SSL_CTX_sess_accept(ctx));
+        printf("Number of successfully established SSL/TLS sessions in server mode: %ld\n", SSL_CTX_sess_accept_good(ctx));
+        printf("Number of started renegotiations in server mode: %ld\n", SSL_CTX_sess_accept_renegotiate(ctx));
+        printf("Number of successfully reused sessions: %ld\n", SSL_CTX_sess_hits(ctx));
+        printf("Number of successfully retrieved sessions from the external session cache in server mode: %ld\n", SSL_CTX_sess_cb_hits(ctx));
+        printf("Number of sessions proposed by clients that were not found in the internal session cache in server mode: %ld\n", SSL_CTX_sess_misses(ctx));
+        printf("Number of sessions proposed by clients and either found in the internal or external session cache in server mode, but that were invalid due to timeout:%ld\n", SSL_CTX_sess_timeouts(ctx));
+        printf("Number of sessions that were removed because the maximum session cache size was exceeded: %ld\n", SSL_CTX_sess_cache_full(ctx));
+}
+
 using namespace ngtcp2;
 
 #ifndef NGTCP2_ENABLE_UDP_GSO
@@ -2886,6 +2904,8 @@ int client_hello_cb(SSL *ssl, int *al, void *arg) {
   const uint8_t *tp;
   size_t tplen;
 
+  print_session_statistics(SSL_get_SSL_CTX(ssl));
+
   if (!SSL_client_hello_get0_ext(ssl, NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS,
                                  &tp, &tplen)) {
     *al = SSL_AD_INTERNAL_ERROR;
@@ -2913,9 +2933,12 @@ SSL_CTX *create_ssl_ctx(const char *private_key_file, const char *cert_file) {
   constexpr auto ssl_opts = (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
                             SSL_OP_SINGLE_ECDH_USE |
                             SSL_OP_CIPHER_SERVER_PREFERENCE |
-                            SSL_OP_NO_ANTI_REPLAY;
+                            SSL_OP_NO_ANTI_REPLAY |
+			    SSL_OP_NO_TICKET;
 
   SSL_CTX_set_options(ssl_ctx, ssl_opts);
+
+  SSL_CTX_set_session_cache_mode(ssl_ctx, SSL_SESS_CACHE_SERVER | SSL_SESS_CACHE_NO_AUTO_CLEAR);
 
   if (SSL_CTX_set_ciphersuites(ssl_ctx, config.ciphers) != 1) {
     std::cerr << "SSL_CTX_set_ciphersuites: "
@@ -2964,6 +2987,7 @@ SSL_CTX *create_ssl_ctx(const char *private_key_file, const char *cert_file) {
                            SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                        verify_cb);
   }
+
 
   SSL_CTX_set_max_early_data(ssl_ctx, std::numeric_limits<uint32_t>::max());
   SSL_CTX_set_quic_method(ssl_ctx, &quic_method);
