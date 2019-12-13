@@ -57,6 +57,67 @@
 
 //NEW STUFF
 
+static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
+{
+	printf("!!! NEW SESSION CB !!!\n");
+
+
+	/*
+
+	int r;
+
+        unsigned int var = 32;
+
+        unsigned int *max_session_id_length = &var;
+
+
+	//printf("%x\n", SSL_SESSION_get_id(session, max_session_id_length));
+
+
+	// store the session
+	r = ssl_scache_store(session,10000);
+
+	if(r == 1 && VERBOSE == 1){
+		printf("New session successfully stored\n");
+	}
+
+
+	return 0;
+	*/
+	return 1;
+}
+
+static void remove_session_cb(struct ssl_ctx_st *ctx, SSL_SESSION *sess)
+{
+    printf("!!! REMOVE SESSION CB !!!\n");
+    return;
+}
+
+static SSL_SESSION *get_session_cb(struct ssl_st *ssl, const unsigned char *data, int len, int *copy)
+{
+    printf("!!! GET SESSION CB !!!\n");
+
+    SSL_SESSION *s = NULL;
+
+    /*
+    SSL_SESSION *session;
+
+    session = ssl_scache_retrieve((unsigned char *)data, len);
+
+    if(session != NULL){
+	if(VERBOSE == 1){	printf("ssl_scache_retrieve successful!\n");	}
+    }
+    else{
+	printf("ssl_scache_retrieve returned NULL!\n");
+    }
+
+    *copy = 0;
+
+    return session;
+    */
+    return s;
+}
+
 void print_session_statistics(SSL_CTX *ctx)
 {
         printf("Number of sessions in the internal session cache: %ld\n", SSL_CTX_sess_number(ctx));
@@ -2992,6 +3053,9 @@ SSL_CTX *create_ssl_ctx(const char *private_key_file, const char *cert_file) {
   SSL_CTX_set_max_early_data(ssl_ctx, std::numeric_limits<uint32_t>::max());
   SSL_CTX_set_quic_method(ssl_ctx, &quic_method);
   SSL_CTX_set_client_hello_cb(ssl_ctx, client_hello_cb, nullptr);
+  SSL_CTX_sess_set_new_cb(ssl_ctx, new_session_cb);
+  SSL_CTX_sess_set_remove_cb(ssl_ctx, remove_session_cb);
+  SSL_CTX_sess_set_get_cb(ssl_ctx, get_session_cb);
 
   return ssl_ctx;
 }
