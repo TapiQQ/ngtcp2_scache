@@ -2183,11 +2183,12 @@ SSL_CTX *create_ssl_ctx(const char *private_key_file, const char *cert_file) {
 
   SSL_CTX_set_quic_method(ssl_ctx, &quic_method);
 
+  /*
   if (config.session_file) {
-    SSL_CTX_set_session_cache_mode(
-        ssl_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
+    SSL_CTX_set_session_cache_mode(ssl_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
     SSL_CTX_sess_set_new_cb(ssl_ctx, new_session_cb);
   }
+  */
 
   return ssl_ctx;
 }
