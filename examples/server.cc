@@ -54,15 +54,13 @@
 #include "http.h"
 #include "keylog.h"
 #include "template.h"
+#include "cache.h"
 
 //NEW STUFF
 
 static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 {
 	printf("!!! NEW SESSION CB !!!\n");
-
-
-	/*
 
 	int r;
 
@@ -77,14 +75,12 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 	// store the session
 	r = ssl_scache_store(session,10000);
 
-	if(r == 1 && VERBOSE == 1){
+	if(r == 1){
 		printf("New session successfully stored\n");
 	}
 
 
 	return 0;
-	*/
-	return 1;
 }
 
 static void remove_session_cb(struct ssl_ctx_st *ctx, SSL_SESSION *sess)
