@@ -45,6 +45,7 @@
 
 #include "network.h"
 #include "shared.h"
+#include "cache.h"
 
 using namespace ngtcp2;
 

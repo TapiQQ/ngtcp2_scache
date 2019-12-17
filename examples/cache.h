@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -14,3 +18,7 @@ SSL_SESSION *ssl_scache_retrieve(unsigned char *id, int idlen);
 
 int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI);
 void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI);
+
+#ifdef __cplusplus
+}
+#endif
