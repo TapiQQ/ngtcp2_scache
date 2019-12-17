@@ -56,6 +56,8 @@
 #include "template.h"
 #include "cache.h"
 
+#define VERBOSE 1
+
 //NEW STUFF
 
 static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
@@ -93,15 +95,12 @@ static SSL_SESSION *get_session_cb(struct ssl_st *ssl, const unsigned char *data
 {
     printf("!!! GET SESSION CB !!!\n");
 
-    SSL_SESSION *s = NULL;
-
-    /*
     SSL_SESSION *session;
 
     session = ssl_scache_retrieve((unsigned char *)data, len);
 
     if(session != NULL){
-	if(VERBOSE == 1){	printf("ssl_scache_retrieve successful!\n");	}
+	printf("ssl_scache_retrieve successful!\n");
     }
     else{
 	printf("ssl_scache_retrieve returned NULL!\n");
@@ -110,8 +109,6 @@ static SSL_SESSION *get_session_cb(struct ssl_st *ssl, const unsigned char *data
     *copy = 0;
 
     return session;
-    */
-    return s;
 }
 
 void print_session_statistics(SSL_CTX *ctx)
@@ -2963,6 +2960,16 @@ int client_hello_cb(SSL *ssl, int *al, void *arg) {
 
   print_session_statistics(SSL_get_SSL_CTX(ssl));
 
+  SSL_SESSION_print_fp(stdout, SSL_get1_session(ssl));
+
+
+        if(SSL_session_reused(ssl) == 1){
+                printf("Session Reused\n");
+        }
+        else{
+                printf("New Session\n");
+        }
+
   if (!SSL_client_hello_get0_ext(ssl, NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS,
                                  &tp, &tplen)) {
     *al = SSL_AD_INTERNAL_ERROR;
@@ -2995,7 +3002,7 @@ SSL_CTX *create_ssl_ctx(const char *private_key_file, const char *cert_file) {
 
   SSL_CTX_set_options(ssl_ctx, ssl_opts);
 
-  SSL_CTX_set_session_cache_mode(ssl_ctx, SSL_SESS_CACHE_SERVER | SSL_SESS_CACHE_NO_AUTO_CLEAR);
+  SSL_CTX_set_session_cache_mode(ssl_ctx, SSL_SESS_CACHE_SERVER | SSL_SESS_CACHE_NO_AUTO_CLEAR | SSL_SESS_CACHE_NO_INTERNAL);
 
   if (SSL_CTX_set_ciphersuites(ssl_ctx, config.ciphers) != 1) {
     std::cerr << "SSL_CTX_set_ciphersuites: "
