@@ -2096,6 +2096,14 @@ int new_session_cb(SSL *ssl, SSL_SESSION *session) {
 
   SSL_SESSION_print_fp(stdout, SSL_get1_session(ssl));
 
+        if(SSL_session_reused(ssl) == 1){
+                printf("Session Reused\n");
+        }
+        else{
+                printf("New Session\n");
+        }
+
+
   PEM_write_bio_SSL_SESSION(f, session);
   BIO_free(f);
 
