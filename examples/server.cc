@@ -73,6 +73,7 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 
 	//printf("%x\n", SSL_SESSION_get_id(session, max_session_id_length));
 
+	SSL_SESSION_print_fp(stdout, session);
 
 	// store the session
 	r = ssl_scache_store(session,10000);
@@ -2903,6 +2904,14 @@ int alpn_select_proto_cb(SSL *ssl, const unsigned char **out,
               << std::endl;
   }
 
+        if(SSL_session_reused(ssl) == 1){
+                printf("Session Reused\n");
+        }
+        else{
+                printf("New Session\n");
+        }
+
+
   return SSL_TLSEXT_ERR_ALERT_FATAL;
 }
 } // namespace
@@ -2960,15 +2969,7 @@ int client_hello_cb(SSL *ssl, int *al, void *arg) {
 
   print_session_statistics(SSL_get_SSL_CTX(ssl));
 
-  SSL_SESSION_print_fp(stdout, SSL_get1_session(ssl));
-
-
-        if(SSL_session_reused(ssl) == 1){
-                printf("Session Reused\n");
-        }
-        else{
-                printf("New Session\n");
-        }
+  //SSL_SESSION_print_fp(stdout, SSL_get1_session(ssl));
 
   if (!SSL_client_hello_get0_ext(ssl, NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS,
                                  &tp, &tplen)) {
