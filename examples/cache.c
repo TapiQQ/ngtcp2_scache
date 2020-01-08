@@ -97,7 +97,7 @@ int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI){
 	memcpy((char *)dbmval.dptr+sizeof(time_t), SCI->ucaData, SCI->nData);
 
 	//Store to DBM file
-	gdbm = gdbm_open("test.gdbm", 0, GDBM_WRITER, 777, NULL);
+	gdbm = gdbm_open("cache.gdbm", 0, GDBM_WRITER, 777, NULL);
 	err = gdbm_store(gdbm, dbmkey, dbmval, GDBM_INSERT);
 	if(err != 0){
 		return 0;
@@ -124,8 +124,9 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 	dbmkey.dptr = (char *)(SCI->ucaKey);
 	dbmkey.dsize = SCI->nKey;
 
+
 	//fetch it from the DBM file
-	gdbm = gdbm_open("test.gdbm", 0, GDBM_READER, 777, NULL);
+	gdbm = gdbm_open("cache.gdbm", 0, GDBM_READER, 777, NULL);
 	dbmval = gdbm_fetch(gdbm, dbmkey);
 	gdbm_close(gdbm);
 
@@ -134,6 +135,10 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 		printf("Retrieved session was NULL\n");
 		return;
 	}
+
+	//ToDo: record is found and to be used. Now we need to aggregate this
+	//record to databases of all neighbours.
+
 
 	//Copy over the information to the SCI
 	SCI->nData = dbmval.dsize-sizeof(time_t);
@@ -146,4 +151,6 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 	memcpy(&SCI->tExpiresAt, dbmval.dptr, sizeof(time_t));
 
 	return;
+
+	//ToDo: Record expiration
 }
