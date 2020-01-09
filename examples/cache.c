@@ -97,7 +97,7 @@ int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI){
 	memcpy((char *)dbmval.dptr+sizeof(time_t), SCI->ucaData, SCI->nData);
 
 	//Store to DBM file
-	gdbm = gdbm_open("/gdbm/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
+	gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
 	err = gdbm_store(gdbm, dbmkey, dbmval, GDBM_INSERT);
 	if(err != 0){
 		return 0;
@@ -126,7 +126,7 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 
 
 	//fetch it from the DBM file
-	gdbm = gdbm_open("/gdbm/cache.gdbm", 0, GDBM_READER, 777, NULL);
+	gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_READER, 777, NULL);
 	dbmval = gdbm_fetch(gdbm, dbmkey);
 	gdbm_close(gdbm);
 
