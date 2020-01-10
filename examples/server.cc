@@ -58,6 +58,8 @@
 
 #define VERBOSE 1
 
+int share = 0;
+
 //NEW STUFF
 
 static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
@@ -74,6 +76,7 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 	//printf("%x\n", SSL_SESSION_get_id(session, max_session_id_length));
 
 	SSL_SESSION_print_fp(stdout, session);
+
 
 	// store the session
 	r = ssl_scache_store(session,10000);
@@ -108,6 +111,8 @@ static SSL_SESSION *get_session_cb(struct ssl_st *ssl, const unsigned char *data
     }
 
     *copy = 0;
+
+    share = 1;
 
     return session;
 }
