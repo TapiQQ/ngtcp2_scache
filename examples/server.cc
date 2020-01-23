@@ -58,8 +58,6 @@
 
 #define VERBOSE 1
 
-int share = 0;
-
 //NEW STUFF
 
 static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
@@ -111,8 +109,6 @@ static SSL_SESSION *get_session_cb(struct ssl_st *ssl, const unsigned char *data
     }
 
     *copy = 0;
-
-    share = 1;
 
     return session;
 }

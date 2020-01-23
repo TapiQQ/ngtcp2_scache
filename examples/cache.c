@@ -3,13 +3,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <gdbm.h>
 #include "cache.h"
-
-extern int share;
 
 struct ssl_scinfo_t {
 	const unsigned char  *ucaKey;
@@ -39,11 +38,19 @@ int ssl_scache_store(SSL_SESSION *sess, int timeout){
 	SCI.tExpiresAt = timeout;
 
 	ssl_scache_dbm_store(&SCI, "/home/quic/cache/cache.gdbm");
-	if(share == 1){
-		ssl_scache_dbm_store(&SCI, "/home/quic/mnt/cache.gdbm");
-	}
 
-	share = 0;
+
+	//Store to neighbour's databases as well
+	int max_neighbours;
+	char fn[26] = "/home/quic/mnt1/cache.gdbm";
+	FILE *file;
+
+	for(int i = 1; i < max_neighbours; i++){
+		fn[14] = i+'0';
+		if(access(fn, F_OK) != -1){
+			ssl_scache_dbm_store(&SCI, fn);
+		}
+	}
 
 	return 1;
 }
@@ -107,8 +114,7 @@ int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI, char* file){
 
 	//Store to DBM file
 	gdbm = gdbm_open(file, 0, GDBM_WRITER, 777, NULL);
-	//printf("lol\n");
-	printf("error: %i\n", gdbm_store(gdbm, dbmkey, dbmval, GDBM_INSERT));
+	err = gdbm_store(gdbm, dbmkey, dbmval, GDBM_INSERT);
 	if(err != 0){
 		printf("error: %i\n", err);
 		return 0;
@@ -120,7 +126,7 @@ int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI, char* file){
 
 	free(dbmval.dptr);
 
-	printf("ssl_scache_dbm_store successful on %s\n", file);
+	//printf("ssl_scache_dbm_store successful on %s\n", file);
 	return 1;
 }
 
@@ -156,26 +162,6 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 	}
 
 
-
-
-	/* attempt at storing after fetching
-	dbmkey_ext.dptr = dbmkey.dptr;
-	dbmkey_ext.dsize = dbmkey.dsize;
-	dbmval_ext.dptr = dbmval.dptr;
-	dbmval_ext.dsize = dbmval.dsize;
-
-	dbmval_ext.dsize = dbmval_ext.dsize-sizeof(time_t);
-	dbmval_ext.dptr = dbmval.dptr+sizeof(time_t);
-
-        gdbm_ext = gdbm_open("/home/quic/mnt/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
-        //err = gdbm_store(gdbm, dbmkey_ext, dbmval_ext, GDBM_INSERT);
-        if(err != 0){
-		printf("error on external store function: %i\n", err);
-                return;
-        }
-	gdbm_close(gdbm_ext);
-	*/
-
 	//Copy over the information to the SCI
 	SCI->nData = dbmval.dsize-sizeof(time_t);
 	SCI->ucaData = (unsigned char *)malloc(SCI->nData);
@@ -185,11 +171,6 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
     	}
 	memcpy(SCI->ucaData, (char *)dbmval.dptr+sizeof(time_t), SCI->nData);
 	memcpy(&SCI->tExpiresAt, dbmval.dptr, sizeof(time_t));
-
-        //ToDo: record is found and to be used. Now we need to aggregate this
-        //record to databases of all neighbours.
-
-	//ssl_scache_dbm_store(SCI, "/home/quic/mnt/cache.dbm");
 
 	return;
 
