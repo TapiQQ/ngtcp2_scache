@@ -90,6 +90,9 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 static void remove_session_cb(struct ssl_ctx_st *ctx, SSL_SESSION *sess)
 {
     printf("!!! REMOVE SESSION CB !!!\n");
+
+    ssl_scache_remove(sess);
+
     return;
 }
 
@@ -3059,7 +3062,7 @@ SSL_CTX *create_ssl_ctx(const char *private_key_file, const char *cert_file) {
   SSL_CTX_set_quic_method(ssl_ctx, &quic_method);
   SSL_CTX_set_client_hello_cb(ssl_ctx, client_hello_cb, nullptr);
   SSL_CTX_sess_set_new_cb(ssl_ctx, new_session_cb);
-  SSL_CTX_sess_set_remove_cb(ssl_ctx, remove_session_cb);
+  //SSL_CTX_sess_set_remove_cb(ssl_ctx, remove_session_cb);
   SSL_CTX_sess_set_get_cb(ssl_ctx, get_session_cb);
 
   return ssl_ctx;

@@ -85,6 +85,25 @@ SSL_SESSION *ssl_scache_retrieve(unsigned char *id, int idlen){
 	return sess;
 }
 
+void ssl_scache_remove(SSL_SESSION *sess){
+	struct ssl_scinfo_t SCI;
+	unsigned int *max_session_id_length;
+	unsigned int var = 32;
+
+	max_session_id_length = &var;
+
+	//create cache query
+	SCI.ucaKey = SSL_SESSION_get_id(sess, max_session_id_length);
+	SCI.nKey = var;
+	SCI.ucaData = NULL;
+	SCI.nData = 0;
+	SCI.tExpiresAt = 0;
+
+	//perform removal
+	ssl_scache_dbm_remove(&SCI);
+
+	return;
+}
 
 int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI, char* file){
 	GDBM_FILE gdbm;
@@ -175,4 +194,24 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 	return;
 
 	//ToDo: Record expiration
+}
+
+void ssl_scache_dbm_remove(struct ssl_scinfo_t *SCI){
+	GDBM_FILE gdbm;
+	datum dbmkey;
+	int err;
+
+	//Create GDBM key and value
+	dbmkey.dptr = (char *)(SCI->ucaKey);
+	dbmkey.dsize = SCI->nKey;
+
+	//Delete it from the GDBM file
+	gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
+	err = gdbm_delete(gdbm, dbmkey);
+	if(err == 0){
+		printf("Entry successfully removed\n");
+	}
+	gdbm_close(gdbm);
+
+	return;
 }
