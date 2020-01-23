@@ -77,7 +77,7 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 
 
 	// store the session
-	r = ssl_scache_store(session,10000);
+	r = ssl_scache_store(session,10);
 
 	if(r == 1){
 		printf("New session successfully stored\n");

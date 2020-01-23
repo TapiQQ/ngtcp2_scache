@@ -52,6 +52,9 @@ int ssl_scache_store(SSL_SESSION *sess, int timeout){
 		}
 	}
 
+	//Allow the regular expiring to occur
+	ssl_scache_expire(time(NULL));
+
 	return 1;
 }
 
@@ -101,6 +104,20 @@ void ssl_scache_remove(SSL_SESSION *sess){
 
 	//perform removal
 	ssl_scache_dbm_remove(&SCI);
+
+	return;
+}
+
+void ssl_scache_expire(time_t now){
+	static time_t last = 0;
+
+	/* Expiration should only be done from time to time
+	   Need an implementation for this propably */
+
+	/*Perform expiration
+	printf("Trying to perform expiration\n");
+	ssl_scache_dbm_expire(now);
+	*/
 
 	return;
 }
@@ -213,5 +230,70 @@ void ssl_scache_dbm_remove(struct ssl_scinfo_t *SCI){
 	}
 	gdbm_close(gdbm);
 
+	return;
+}
+
+void ssl_scache_dbm_expire(time_t tNow){
+	GDBM_FILE gdbm;
+	datum dbmkey;
+	datum dbmval;
+	time_t tExpiresAt;
+	int nElements = 0;
+	int nDeleted = 0;
+	int bDelete;
+	datum *keylist;
+	int keyidx;
+	int i;
+	int j;
+
+
+	#define KEYMAX 32
+
+	for(;;){
+
+		//pass1: scan DBM database
+		keyidx = 0;
+		gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
+		dbmkey = gdbm_firstkey(gdbm);
+		while(dbmkey.dptr != NULL){
+			nElements++;
+			bDelete = 0;
+			dbmval = gdbm_fetch(gdbm, dbmkey);
+			if(dbmval.dsize <= sizeof(time_t) || dbmval.dptr == NULL){
+				bDelete = 1;
+			}
+			else{
+				memcpy(&tExpiresAt, dbmval.dptr, sizeof(time_t));
+				if(tExpiresAt <= tNow){
+					bDelete = 1;
+				}
+			}
+			if(bDelete){
+				if((keylist[keyidx].dptr = malloc(dbmkey.dsize)) != NULL){
+					memcpy(keylist[keyidx].dptr, dbmkey.dptr, dbmkey.dsize);
+					keylist[keyidx].dsize = dbmkey.dsize;
+					keyidx++;
+					if(keyidx == KEYMAX){
+						break;}
+				}
+			}
+			dbmkey = gdbm_nextkey(gdbm, dbmkey);
+		}
+		gdbm_close(gdbm);
+
+
+		//pass2: delete expired elements
+		gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
+		for(i = 0; i < keyidx; i++){
+			gdbm_delete(gdbm, keylist[i]);
+			nDeleted++;
+			printf("Entry successfully deleted\n");
+		}
+		gdbm_close(gdbm);
+
+		for(j = 0; j < keyidx; j++){
+			free(keylist[j].dptr);
+		}
+	}
 	return;
 }
