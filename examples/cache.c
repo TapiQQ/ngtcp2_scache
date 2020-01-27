@@ -249,7 +249,7 @@ void ssl_scache_dbm_expire(time_t tNow){
 
 	#define KEYMAX 32
 
-		//pass1: scan DBM database
+		//loop 2: scan DBM database
 		keyidx = 0;
 		gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
 		dbmkey = gdbm_firstkey(gdbm);
@@ -280,7 +280,7 @@ void ssl_scache_dbm_expire(time_t tNow){
 		gdbm_close(gdbm);
 
 
-		//pass2: delete expired elements
+		//loop 2: delete expired elements
 		gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
 		for(i = 0; i < keyidx; i++){
 			gdbm_delete(gdbm, keylist[i]);
