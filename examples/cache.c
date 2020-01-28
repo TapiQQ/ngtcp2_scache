@@ -41,7 +41,7 @@ int ssl_scache_store(SSL_SESSION *sess, int timeout){
 
 
 	//Store to neighbour's databases as well
-	int max_neighbours;
+	int max_neighbours = 5;
 	char fn[26] = "/home/quic/mnt1/cache.gdbm";
 	FILE *file;
 
