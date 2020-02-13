@@ -29,16 +29,17 @@ int ssl_scache_store(SSL_SESSION *sess, int timeout){
 
 	max_session_id_length = &var;
 
-
+	//Add the key
 	SCI.ucaKey = SSL_SESSION_get_id(sess, max_session_id_length);
 	SCI.nKey = var;
 
+	//Transform the session into a data stream
 	SCI.ucaData = b = buf;
 	SCI.nData = i2d_SSL_SESSION(sess, &b);
 	SCI.tExpiresAt = timeout;
 
+	//And store it
 	ssl_scache_dbm_store(&SCI, "/home/quic/cache/cache.gdbm");
-
 
 	//Store to neighbour's databases as well
 	int max_neighbours = 5;
@@ -73,7 +74,7 @@ SSL_SESSION *ssl_scache_retrieve(unsigned char *id, int idlen){
 	SCI.nData = 0;
 	SCI.tExpiresAt = 0;
 
-	//query
+	//Perform query
 	ssl_scache_dbm_retrieve(&SCI);
 
 
@@ -162,12 +163,8 @@ int ssl_scache_dbm_store(struct ssl_scinfo_t *SCI, char* file){
 	}
 	gdbm_close(gdbm);
 
-
-
-
 	free(dbmval.dptr);
 
-	//printf("ssl_scache_dbm_store successful on %s\n", file);
 	return 1;
 }
 
@@ -214,8 +211,6 @@ void ssl_scache_dbm_retrieve(struct ssl_scinfo_t *SCI){
 	memcpy(&SCI->tExpiresAt, dbmval.dptr, sizeof(time_t));
 
 	return;
-
-	//ToDo: Record expiration
 }
 
 void ssl_scache_dbm_remove(struct ssl_scinfo_t *SCI){

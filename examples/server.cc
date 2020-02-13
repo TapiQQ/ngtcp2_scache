@@ -75,6 +75,8 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 
 	SSL_SESSION_print_fp(stdout, session);
 
+	//set timeout
+	SSL_set_timeout(session, expire);
 	t = (SSL_get_time(session) + expire);
 
 	// store the session
