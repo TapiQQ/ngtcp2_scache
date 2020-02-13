@@ -65,9 +65,9 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 	printf("!!! NEW SESSION CB !!!\n");
 
 	int r;
-
+	long t;
+	long expire = 86400; //1 Day
         unsigned int var = 32;
-
         unsigned int *max_session_id_length = &var;
 
 
@@ -75,9 +75,10 @@ static int new_session_cb(struct ssl_st *ssl, SSL_SESSION *session)
 
 	SSL_SESSION_print_fp(stdout, session);
 
+	t = (SSL_get_time(session) + expire);
 
 	// store the session
-	r = ssl_scache_store(session,10);
+	r = ssl_scache_store(session, t);
 
 	if(r == 1){
 		printf("New session successfully stored\n");

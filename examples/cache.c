@@ -82,7 +82,12 @@ SSL_SESSION *ssl_scache_retrieve(unsigned char *id, int idlen){
 		return NULL;
 	}
 
-	//no expiration implementation yet
+	//check for expire time
+	if(SCI.tExpiresAt <= tNow){
+		printf("Retrieved session was expired\n");
+		ssl_scache_dbm_remove(&SCI);
+		return NULL;
+	}
 
 	sess = d2i_SSL_SESSION(NULL, (const unsigned char **)&SCI.ucaData, SCI.nData);
 	return sess;
