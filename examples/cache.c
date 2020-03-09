@@ -120,10 +120,9 @@ void ssl_scache_expire(time_t now){
 	/* Expiration should only be done from time to time
 	   Need an implementation for this propably */
 
-	/*Perform expiration
+	//Perform expiration
 	printf("Trying to perform expiration\n");
 	ssl_scache_dbm_expire(now);
-	*/
 
 	return;
 }
