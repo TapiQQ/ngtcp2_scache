@@ -9,6 +9,8 @@
 #include <openssl/err.h>
 #include <gdbm.h>
 #include "cache.h"
+#include "pool.h"
+#include "pool.c"
 
 struct ssl_scinfo_t {
 	const unsigned char  *ucaKey;
@@ -236,6 +238,8 @@ void ssl_scache_dbm_expire(time_t tNow){
 	GDBM_FILE gdbm;
 	datum dbmkey;
 	datum dbmval;
+	pool p1;
+	pool p2;
 	time_t tExpiresAt;
 	int nElements = 0;
 	int nDeleted = 0;
@@ -248,7 +252,19 @@ void ssl_scache_dbm_expire(time_t tNow){
 
 	#define KEYMAX 32
 
-		//loop 2: scan DBM database
+		poolInitialize(&p1, sizeof(dbmkey), KEYMAX);
+		poolInitialize(&p2, sizeof(dbmkey.dsize), 1);
+		if(&p1 == NULL || &p2 == NULL){
+			printf("pooling failed\n");
+			return;
+		}
+
+		if( (keylist = poolMalloc(&p1)) == NULL){
+			printf("pooling failed\n");
+			return;
+		}
+
+		//loop 1: scan DBM database
 		keyidx = 0;
 		gdbm = gdbm_open("/home/quic/cache/cache.gdbm", 0, GDBM_WRITER, 777, NULL);
 		dbmkey = gdbm_firstkey(gdbm);
@@ -265,8 +281,9 @@ void ssl_scache_dbm_expire(time_t tNow){
 					bDelete = 1;
 				}
 			}
+			printf("%d\n", bDelete);
 			if(bDelete){
-				if((keylist[keyidx].dptr = malloc(dbmkey.dsize)) != NULL){
+				if(  (keylist[keyidx].dptr = poolMalloc(&p2)) != NULL  ){
 					memcpy(keylist[keyidx].dptr, dbmkey.dptr, dbmkey.dsize);
 					keylist[keyidx].dsize = dbmkey.dsize;
 					keyidx++;
@@ -288,9 +305,8 @@ void ssl_scache_dbm_expire(time_t tNow){
 		}
 		gdbm_close(gdbm);
 
-		for(j = 0; j < keyidx; j++){
-			free(keylist[j].dptr);
-		}
+		poolFreePool(&p1);
+		poolFreePool(&p2);
 
 	return;
 }

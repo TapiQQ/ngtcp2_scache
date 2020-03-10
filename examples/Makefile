@@ -631,7 +631,8 @@ server_SOURCES = server.cc server.h \
 	keylog.cc keylog.h \
 	shared.cc shared.h \
 	http.cc http.h \
-	cache.c cache.h
+	cache.c cache.h \
+	pool.c pool.h
 
 examplestest_SOURCES = examplestest.cc \
 	util_test.cc util_test.h util.cc util.h
