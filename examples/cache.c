@@ -119,12 +119,18 @@ void ssl_scache_remove(SSL_SESSION *sess){
 void ssl_scache_expire(time_t now){
 	static time_t last = 0;
 
-	/* Expiration should only be done from time to time
-	   Need an implementation for this propably */
+	// Expiration should only be done from time to time
 
-	//Perform expiration
-	printf("Trying to perform expiration\n");
-	ssl_scache_dbm_expire(now);
+	   
+	if(last + 86400 < now){
+		printf("Trying to perform expiration\n");
+		ssl_scache_dbm_expire(now);
+	}
+	else{
+		printf("Expiration performed less than a day ago");
+	}
+
+	last = now;
 
 	return;
 }
