@@ -120,17 +120,15 @@ void ssl_scache_expire(time_t now){
 	static time_t last = 0;
 
 	// Expiration should only be done from time to time
-
-	   
-	if(last + 86400 < now){
+	if( (last + 86400 < now) || last == 0 ){
 		printf("Trying to perform expiration\n");
 		ssl_scache_dbm_expire(now);
+		last = now;
 	}
 	else{
-		printf("Expiration performed less than a day ago");
+		printf("Expiration performed less than a day ago\n");
 	}
 
-	last = now;
 
 	return;
 }
@@ -287,7 +285,7 @@ void ssl_scache_dbm_expire(time_t tNow){
 					bDelete = 1;
 				}
 			}
-			printf("%d\n", bDelete);
+			//printf("%d\n", bDelete);
 			if(bDelete){
 				if(  (keylist[keyidx].dptr = poolMalloc(&p2)) != NULL  ){
 					memcpy(keylist[keyidx].dptr, dbmkey.dptr, dbmkey.dsize);
@@ -310,6 +308,8 @@ void ssl_scache_dbm_expire(time_t tNow){
 			printf("Entry successfully deleted\n");
 		}
 		gdbm_close(gdbm);
+
+		printf("Deleted %d entries\n", nDeleted);
 
 		poolFreePool(&p1);
 		poolFreePool(&p2);
