@@ -38,10 +38,6 @@ typedef enum {
   NGTCP2_SCID_FLAG_NONE,
   NGTCP2_SCID_FLAG_USED = 0x01,
   NGTCP2_SCID_FLAG_RETIRED = 0x02,
-  /* NGTCP2_SCID_FLAG_INITIAL_CID indicates that this Connection ID is
-     provided during handshake (initial Connection ID or in
-     preferred_address transport parameter). */
-  NGTCP2_SCID_FLAG_INITIAL_CID = 0x04,
 } ngtcp2_scid_flag;
 
 typedef struct {
@@ -124,6 +120,12 @@ void ngtcp2_dcid_init(ngtcp2_dcid *dcid, uint64_t seq, const ngtcp2_cid *cid,
  * ngtcp2_dcid_copy copies |src| into |dest|.
  */
 void ngtcp2_dcid_copy(ngtcp2_dcid *dest, const ngtcp2_dcid *src);
+
+/*
+ * ngtcp2_dcid_copy_no_path behaves like ngtcp2_dcid_copy, but it does
+ * not copy path.
+ */
+void ngtcp2_dcid_copy_no_path(ngtcp2_dcid *dest, const ngtcp2_dcid *src);
 
 /*
  * ngtcp2_dcid_verify_uniqueness verifies uniqueness of (|seq|, |cid|,

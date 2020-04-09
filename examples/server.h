@@ -118,6 +118,9 @@ struct Config {
   // max_dyn_length is the maximum length of dynamically generated
   // response.
   uint64_t max_dyn_length;
+  // static_secret is used to derive keying materials for Retry and
+  // Stateless Retry token.
+  std::array<uint8_t, 32> static_secret;
 };
 
 struct Buffer {
@@ -263,8 +266,10 @@ public:
 
   void set_tls_alert(uint8_t alert);
 
-  int update_key(uint8_t *rx_key, uint8_t *rx_iv, uint8_t *tx_key,
-                 uint8_t *tx_iv);
+  int update_key(uint8_t *rx_secret, uint8_t *tx_secret, uint8_t *rx_key,
+                 uint8_t *rx_iv, uint8_t *tx_key, uint8_t *tx_iv,
+                 const uint8_t *current_rx_secret,
+                 const uint8_t *current_tx_secret, size_t secretlen);
 
   int setup_httpconn();
   void http_consume(int64_t stream_id, size_t nconsumed);
@@ -282,6 +287,7 @@ public:
   void http_acked_stream_data(int64_t stream_id, size_t datalen);
   int push_content(int64_t stream_id, const std::string_view &authority,
                    const std::string_view &path);
+  void http_stream_close(int64_t stream_id, uint64_t app_error_code);
 
   void reset_idle_timer();
 
@@ -313,16 +319,12 @@ private:
   // This packet is repeatedly sent as a response to the incoming
   // packet in draining period.
   std::unique_ptr<Buffer> conn_closebuf_;
-  std::vector<uint8_t> tx_secret_;
-  std::vector<uint8_t> rx_secret_;
   QUICError last_error_;
   // nkey_update_ is the number of key update occurred.
   size_t nkey_update_;
   // draining_ becomes true when draining period starts.
   bool draining_;
 };
-
-constexpr size_t TOKEN_SECRETLEN = 16;
 
 class Server {
 public:
@@ -340,6 +342,8 @@ public:
                                socklen_t salen);
   int send_retry(const ngtcp2_pkt_hd *chd, Endpoint &ep, const sockaddr *sa,
                  socklen_t salen);
+  int send_stateless_connection_close(const ngtcp2_pkt_hd *chd, Endpoint &ep,
+                                      const sockaddr *sa, socklen_t salen);
   int generate_token(uint8_t *token, size_t &tokenlen, const sockaddr *sa,
                      socklen_t salen, const ngtcp2_cid *ocid);
   int verify_token(ngtcp2_cid *ocid, const ngtcp2_pkt_hd *hd,
@@ -350,7 +354,7 @@ public:
 
   int derive_token_key(uint8_t *key, size_t &keylen, uint8_t *iv, size_t &ivlen,
                        const uint8_t *rand_data, size_t rand_datalen);
-  int generate_rand_data(uint8_t *buf, size_t len);
+  void generate_rand_data(uint8_t *buf, size_t len);
   void associate_cid(const ngtcp2_cid *cid, Handler *h);
   void dissociate_cid(const ngtcp2_cid *cid);
 
@@ -364,7 +368,6 @@ private:
   SSL_CTX *ssl_ctx_;
   ngtcp2_crypto_aead token_aead_;
   ngtcp2_crypto_md token_md_;
-  std::array<uint8_t, TOKEN_SECRETLEN> token_secret_;
   ev_signal sigintev_;
 };
 

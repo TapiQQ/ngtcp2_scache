@@ -41,7 +41,6 @@ LDADD = $(top_builddir)/crypto/openssl/libngtcp2_crypto_openssl.la \
 	@LIBEV_LIBS@ \
 	@LIBNGHTTP3_LIBS@
 
-
 noinst_PROGRAMS = client server
 
 client_SOURCES = client.cc client.h \
@@ -68,3 +67,4 @@ examplestest_LDADD = ${LDADD} @CUNIT_LIBS@
 
 TESTS = examplestest
 endif # HAVE_CUNIT
+

@@ -48,6 +48,8 @@ const char *ngtcp2_strerror(int liberr) {
     return "ERR_STREAM_DATA_BLOCKED";
   case NGTCP2_ERR_FLOW_CONTROL:
     return "ERR_FLOW_CONTROL";
+  case NGTCP2_ERR_CONNECTION_ID_LIMIT:
+    return "ERR_CONNECTION_ID_LIMIT";
   case NGTCP2_ERR_STREAM_LIMIT:
     return "ERR_STREAM_LIMIT";
   case NGTCP2_ERR_FINAL_SIZE:
@@ -96,6 +98,8 @@ const char *ngtcp2_strerror(int liberr) {
     return "ERR_WRITE_STREAM_MORE";
   case NGTCP2_ERR_RETRY:
     return "ERR_RETRY";
+  case NGTCP2_ERR_DROP_CONN:
+    return "ERR_DROP_CONN";
   default:
     return "(unknown)";
   }
@@ -112,12 +116,15 @@ uint64_t ngtcp2_err_infer_quic_transport_error_code(int liberr) {
     return NGTCP2_FRAME_ENCODING_ERROR;
   case NGTCP2_ERR_FLOW_CONTROL:
     return NGTCP2_FLOW_CONTROL_ERROR;
+  case NGTCP2_ERR_CONNECTION_ID_LIMIT:
+    return NGTCP2_CONNECTION_ID_LIMIT_ERROR;
   case NGTCP2_ERR_STREAM_LIMIT:
     return NGTCP2_STREAM_LIMIT_ERROR;
   case NGTCP2_ERR_FINAL_SIZE:
     return NGTCP2_FINAL_SIZE_ERROR;
   case NGTCP2_ERR_REQUIRED_TRANSPORT_PARAM:
   case NGTCP2_ERR_MALFORMED_TRANSPORT_PARAM:
+  case NGTCP2_ERR_TRANSPORT_PARAM:
     return NGTCP2_TRANSPORT_PARAMETER_ERROR;
   case NGTCP2_ERR_INVALID_ARGUMENT:
     return NGTCP2_INTERNAL_ERROR;

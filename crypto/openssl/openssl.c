@@ -42,6 +42,11 @@ ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_initial(ngtcp2_crypto_ctx *ctx) {
   return ctx;
 }
 
+ngtcp2_crypto_aead *ngtcp2_crypto_aead_retry(ngtcp2_crypto_aead *aead) {
+  aead->native_handle = (void *)EVP_aes_128_gcm();
+  return aead;
+}
+
 static const EVP_CIPHER *crypto_ssl_get_aead(SSL *ssl) {
   switch (SSL_CIPHER_get_id(SSL_get_current_cipher(ssl))) {
   case TLS1_3_CK_AES_128_GCM_SHA256:
@@ -93,6 +98,14 @@ ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
   return ctx;
 }
 
+static size_t crypto_md_hashlen(const EVP_MD *md) {
+  return (size_t)EVP_MD_size(md);
+}
+
+size_t ngtcp2_crypto_md_hashlen(const ngtcp2_crypto_md *md) {
+  return crypto_md_hashlen(md->native_handle);
+}
+
 static size_t crypto_aead_keylen(const EVP_CIPHER *aead) {
   return (size_t)EVP_CIPHER_key_length(aead);
 }
@@ -126,13 +139,14 @@ size_t ngtcp2_crypto_aead_taglen(const ngtcp2_crypto_aead *aead) {
   return crypto_aead_taglen(aead->native_handle);
 }
 
-int ngtcp2_crypto_hkdf_extract(uint8_t *dest, size_t destlen,
-                               const ngtcp2_crypto_md *md,
+int ngtcp2_crypto_hkdf_extract(uint8_t *dest, const ngtcp2_crypto_md *md,
                                const uint8_t *secret, size_t secretlen,
                                const uint8_t *salt, size_t saltlen) {
   const EVP_MD *prf = md->native_handle;
   int rv = 0;
   EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+  size_t destlen = (size_t)EVP_MD_size(prf);
+
   if (pctx == NULL) {
     return -1;
   }
@@ -351,13 +365,12 @@ int ngtcp2_crypto_read_write_crypto_data(ngtcp2_conn *conn, void *tls,
   return 0;
 }
 
-int ngtcp2_crypto_set_remote_transport_params(ngtcp2_conn *conn, void *tls,
-                                              ngtcp2_crypto_side side) {
+int ngtcp2_crypto_set_remote_transport_params(ngtcp2_conn *conn, void *tls) {
   SSL *ssl = tls;
   ngtcp2_transport_params_type exttype =
-      side == NGTCP2_CRYPTO_SIDE_CLIENT
-          ? NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS
-          : NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO;
+      ngtcp2_conn_is_server(conn)
+          ? NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO
+          : NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS;
   const uint8_t *tp;
   size_t tplen;
   ngtcp2_transport_params params;
@@ -367,11 +380,13 @@ int ngtcp2_crypto_set_remote_transport_params(ngtcp2_conn *conn, void *tls,
 
   rv = ngtcp2_decode_transport_params(&params, exttype, tp, tplen);
   if (rv != 0) {
+    ngtcp2_conn_set_tls_error(conn, rv);
     return -1;
   }
 
   rv = ngtcp2_conn_set_remote_transport_params(conn, &params);
   if (rv != 0) {
+    ngtcp2_conn_set_tls_error(conn, rv);
     return -1;
   }
 

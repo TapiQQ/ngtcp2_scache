@@ -1,7 +1,7 @@
 /*
  * ngtcp2
  *
- * Copyright (c) 2017 ngtcp2 contributors
+ * Copyright (c) 2020 ngtcp2 contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -22,14 +22,18 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef NGTCP2_RTB_TEST_H
-#define NGTCP2_RTB_TEST_H
+#include "ngtcp2_str_test.h"
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#include <CUnit/CUnit.h>
 
-void test_ngtcp2_rtb_add(void);
-void test_ngtcp2_rtb_recv_ack(void);
+#include "ngtcp2_str.h"
+#include "ngtcp2_test_helper.h"
 
-#endif /* NGTCP2_RTB_TEST_H */
+void test_ngtcp2_check_invalid_stateless_reset_token(void) {
+  static uint8_t invalid_token[] = {0, 0, 0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0, 0, 0};
+  static uint8_t good_token[NGTCP2_STATELESS_RESET_TOKENLEN] = {1};
+
+  CU_ASSERT(ngtcp2_check_invalid_stateless_reset_token(invalid_token));
+  CU_ASSERT(!ngtcp2_check_invalid_stateless_reset_token(good_token));
+}

@@ -37,7 +37,7 @@
  * Skip List using single key instead of range.
  */
 
-#define NGTCP2_KSL_DEGR 8
+#define NGTCP2_KSL_DEGR 16
 /* NGTCP2_KSL_MAX_NBLK is the maximum number of nodes which a single
    block can contain. */
 #define NGTCP2_KSL_MAX_NBLK (2 * NGTCP2_KSL_DEGR - 1)
@@ -48,12 +48,7 @@
 /*
  * ngtcp2_ksl_key represents key in ngtcp2_ksl.
  */
-typedef union {
-  /* i is defined to retrieve int64_t key for convenience. */
-  const int64_t *i;
-  /* ptr points to the key. */
-  const void *ptr;
-} ngtcp2_ksl_key;
+typedef void ngtcp2_ksl_key;
 
 struct ngtcp2_ksl_node;
 typedef struct ngtcp2_ksl_node ngtcp2_ksl_node;
@@ -277,7 +272,10 @@ void *ngtcp2_ksl_it_get(const ngtcp2_ksl_it *it);
  * if this function is called when ngtcp2_ksl_it_end(it) returns
  * nonzero.
  */
-void ngtcp2_ksl_it_next(ngtcp2_ksl_it *it);
+#define ngtcp2_ksl_it_next(IT)                                                 \
+  (++(IT)->i == (IT)->blk->n && (IT)->blk->next                                \
+       ? ((IT)->blk = (IT)->blk->next, (IT)->i = 0)                            \
+       : 0)
 
 /*
  * ngtcp2_ksl_it_prev moves backward the iterator by one.  It is
@@ -290,7 +288,8 @@ void ngtcp2_ksl_it_prev(ngtcp2_ksl_it *it);
  * ngtcp2_ksl_it_end returns nonzero if |it| points to the beyond the
  * last node.
  */
-int ngtcp2_ksl_it_end(const ngtcp2_ksl_it *it);
+#define ngtcp2_ksl_it_end(IT)                                                  \
+  ((IT)->blk->n == (IT)->i && (IT)->blk->next == NULL)
 
 /*
  * ngtcp2_ksl_it_begin returns nonzero if |it| points to the first
@@ -304,13 +303,11 @@ int ngtcp2_ksl_it_begin(const ngtcp2_ksl_it *it);
  * It is undefined to call this function when ngtcp2_ksl_it_end(it)
  * returns nonzero.
  */
-ngtcp2_ksl_key ngtcp2_ksl_it_key(const ngtcp2_ksl_it *it);
-
-/*
- * ngtcp2_ksl_key_ptr is a convenient function which initializes |key|
- * with |ptr| and returns |key|.
- */
-ngtcp2_ksl_key *ngtcp2_ksl_key_ptr(ngtcp2_ksl_key *key, const void *ptr);
+#define ngtcp2_ksl_it_key(IT)                                                  \
+  ((ngtcp2_ksl_key *)((ngtcp2_ksl_node *)(void *)((IT)->blk->nodes +           \
+                                                  (IT)->ksl->nodelen *         \
+                                                      (IT)->i))                \
+       ->key)
 
 /*
  * ngtcp2_ksl_range_compar is an implementation of ngtcp2_ksl_compar.

@@ -47,6 +47,7 @@
 #include "ngtcp2_vec_test.h"
 #include "ngtcp2_strm_test.h"
 #include "ngtcp2_pv_test.h"
+#include "ngtcp2_str_test.h"
 
 static int init_suite1(void) { return 0; }
 
@@ -117,7 +118,9 @@ int main() {
       !CU_add_test(pSuite, "pkt_encode_new_token_frame",
                    test_ngtcp2_pkt_encode_new_token_frame) ||
       !CU_add_test(pSuite, "pkt_encode_retire_connection_id",
-                   test_ngtcp2_pkt_encode_retire_connection_id) ||
+                   test_ngtcp2_pkt_encode_retire_connection_id_frame) ||
+      !CU_add_test(pSuite, "pkt_encode_handshake_done",
+                   test_ngtcp2_pkt_encode_handshake_done_frame) ||
       !CU_add_test(pSuite, "pkt_adjust_pkt_num",
                    test_ngtcp2_pkt_adjust_pkt_num) ||
       !CU_add_test(pSuite, "pkt_validate_ack", test_ngtcp2_pkt_validate_ack) ||
@@ -160,7 +163,6 @@ int main() {
                    test_ngtcp2_encode_transport_params) ||
       !CU_add_test(pSuite, "rtb_add", test_ngtcp2_rtb_add) ||
       !CU_add_test(pSuite, "rtb_recv_ack", test_ngtcp2_rtb_recv_ack) ||
-      !CU_add_test(pSuite, "rtb_clear", test_ngtcp2_rtb_clear) ||
       !CU_add_test(pSuite, "idtr_open", test_ngtcp2_idtr_open) ||
       !CU_add_test(pSuite, "ringbuf_push_front",
                    test_ngtcp2_ringbuf_push_front) ||
@@ -240,6 +242,10 @@ int main() {
                    test_ngtcp2_conn_recv_client_initial_retry) ||
       !CU_add_test(pSuite, "conn_recv_client_initial_token",
                    test_ngtcp2_conn_recv_client_initial_token) ||
+      !CU_add_test(pSuite, "conn_get_active_dcid",
+                   test_ngtcp2_conn_get_active_dcid) ||
+      !CU_add_test(pSuite, "pkt_write_connection_close",
+                   test_ngtcp2_pkt_write_connection_close) ||
       !CU_add_test(pSuite, "map", test_ngtcp2_map) ||
       !CU_add_test(pSuite, "map_functional", test_ngtcp2_map_functional) ||
       !CU_add_test(pSuite, "map_each_free", test_ngtcp2_map_each_free) ||
@@ -251,7 +257,9 @@ int main() {
       !CU_add_test(pSuite, "strm_streamfrq_pop",
                    test_ngtcp2_strm_streamfrq_pop) ||
       !CU_add_test(pSuite, "pv_add_entry", test_ngtcp2_pv_add_entry) ||
-      !CU_add_test(pSuite, "pv_validate", test_ngtcp2_pv_validate)) {
+      !CU_add_test(pSuite, "pv_validate", test_ngtcp2_pv_validate) ||
+      !CU_add_test(pSuite, "check_invalid_stateless_reset_token",
+                   test_ngtcp2_check_invalid_stateless_reset_token)) {
     CU_cleanup_registry();
     return (int)CU_get_error();
   }

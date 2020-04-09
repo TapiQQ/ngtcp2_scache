@@ -159,7 +159,7 @@ typedef struct ngtcp2_mem {
 } ngtcp2_mem;
 
 /* NGTCP2_PROTO_VER is the supported QUIC protocol version. */
-#define NGTCP2_PROTO_VER 0xff000018u
+#define NGTCP2_PROTO_VER 0xff00001bu
 /* NGTCP2_PROTO_VER_MAX is the highest QUIC version the library
    supports. */
 #define NGTCP2_PROTO_VER_MAX NGTCP2_PROTO_VER
@@ -167,7 +167,7 @@ typedef struct ngtcp2_mem {
 /* NGTCP2_ALPN_H3 is a serialized form of HTTP/3 ALPN protocol
    identifier this library supports.  Notice that the first byte is
    the length of the following protocol identifier. */
-#define NGTCP2_ALPN_H3 "\x5h3-24"
+#define NGTCP2_ALPN_H3 "\x5h3-27"
 
 #define NGTCP2_MAX_PKTLEN_IPV4 1252
 #define NGTCP2_MAX_PKTLEN_IPV6 1232
@@ -227,6 +227,7 @@ typedef enum ngtcp2_lib_error {
   NGTCP2_ERR_STREAM_IN_USE = -209,
   NGTCP2_ERR_STREAM_DATA_BLOCKED = -210,
   NGTCP2_ERR_FLOW_CONTROL = -211,
+  NGTCP2_ERR_CONNECTION_ID_LIMIT = -212,
   NGTCP2_ERR_STREAM_LIMIT = -213,
   NGTCP2_ERR_FINAL_SIZE = -214,
   NGTCP2_ERR_CRYPTO = -215,
@@ -249,6 +250,7 @@ typedef enum ngtcp2_lib_error {
   NGTCP2_ERR_CRYPTO_BUFFER_EXCEEDED = -239,
   NGTCP2_ERR_WRITE_STREAM_MORE = -240,
   NGTCP2_ERR_RETRY = -241,
+  NGTCP2_ERR_DROP_CONN = -242,
   NGTCP2_ERR_FATAL = -500,
   NGTCP2_ERR_NOMEM = -501,
   NGTCP2_ERR_CALLBACK_FAILURE = -502,
@@ -286,7 +288,9 @@ typedef enum ngtcp2_pkt_type {
 #define NGTCP2_FINAL_SIZE_ERROR 0x6u
 #define NGTCP2_FRAME_ENCODING_ERROR 0x7u
 #define NGTCP2_TRANSPORT_PARAMETER_ERROR 0x8u
+#define NGTCP2_CONNECTION_ID_LIMIT_ERROR 0x9u
 #define NGTCP2_PROTOCOL_VIOLATION 0xau
+#define NGTCP2_INVALID_TOKEN 0xbu
 #define NGTCP2_CRYPTO_BUFFER_EXCEEDED 0xdu
 #define NGTCP2_KEY_UPDATE_ERROR 0xeu
 #define NGTCP2_CRYPTO_ERROR 0x100u
@@ -345,8 +349,8 @@ typedef struct ngtcp2_vec {
  *
  * `ngtcp2_cid_init` initializes Connection ID |cid| with the byte
  * string pointed by |data| and its length is |datalen|.  |datalen|
- * must be at least :enum:`NGTCP2_MIN_CDLEN`, and at most
- * :enum:`NGTCP2_MAX_CDLEN`.
+ * must be at least :enum:`NGTCP2_MIN_CIDLEN`, and at most
+ * :enum:`NGTCP2_MAX_CIDLEN`.
  */
 NGTCP2_EXTERN void ngtcp2_cid_init(ngtcp2_cid *cid, const uint8_t *data,
                                    size_t datalen);
@@ -377,10 +381,14 @@ typedef struct ngtcp2_pkt_stateless_reset {
   size_t randlen;
 } ngtcp2_pkt_stateless_reset;
 
+/* NGTCP2_RETRY_TAGLEN is the length of Retry packet integrity tag. */
+#define NGTCP2_RETRY_TAGLEN 16
+
 typedef struct ngtcp2_pkt_retry {
   ngtcp2_cid odcid;
   const uint8_t *token;
   size_t tokenlen;
+  uint8_t tag[NGTCP2_RETRY_TAGLEN];
 } ngtcp2_pkt_retry;
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
@@ -389,7 +397,7 @@ typedef enum ngtcp2_transport_param_id : uint16_t {
 typedef enum ngtcp2_transport_param_id {
 #endif
   NGTCP2_TRANSPORT_PARAM_ORIGINAL_CONNECTION_ID = 0x0000,
-  NGTCP2_TRANSPORT_PARAM_IDLE_TIMEOUT = 0x0001,
+  NGTCP2_TRANSPORT_PARAM_MAX_IDLE_TIMEOUT = 0x0001,
   NGTCP2_TRANSPORT_PARAM_STATELESS_RESET_TOKEN = 0x0002,
   NGTCP2_TRANSPORT_PARAM_MAX_PACKET_SIZE = 0x0003,
   NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_DATA = 0x0004,
@@ -455,6 +463,14 @@ typedef enum ngtcp2_rand_ctx {
 /**
  * @macro
  *
+ * NGTCP2_DEFAULT_ACTIVE_CONNECTION_ID_LIMIT is the default value of
+ * active_connection_id_limit transport parameter value if omitted.
+ */
+#define NGTCP2_DEFAULT_ACTIVE_CONNECTION_ID_LIMIT 2
+
+/**
+ * @macro
+ *
  * NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS is TLS extension type of
  * quic_transport_parameters.
  */
@@ -499,10 +515,12 @@ typedef struct ngtcp2_transport_params {
   /* initial_max_streams_uni is the number of concurrent
      unidirectional streams that the remote endpoint can create. */
   uint64_t initial_max_streams_uni;
-  /* idle_timeout is a duration during which endpoint allows
+  /* max_idle_timeout is a duration during which sender allows
      quiescent. */
-  ngtcp2_duration idle_timeout;
+  ngtcp2_duration max_idle_timeout;
   uint64_t max_packet_size;
+  /* active_connection_id_limit is the maximum number of Connection ID
+     that sender can store. */
   uint64_t active_connection_id_limit;
   uint64_t ack_delay_exponent;
   ngtcp2_duration max_ack_delay;
@@ -559,13 +577,12 @@ typedef struct ngtcp2_rcvry_stat {
   ngtcp2_duration smoothed_rtt;
   ngtcp2_duration rttvar;
   size_t pto_count;
-  /* probe_pkt_left is the number of probe packet to sent */
-  size_t probe_pkt_left;
   ngtcp2_tstamp loss_detection_timer;
   /* last_tx_pkt_ts corresponds to
      time_of_last_sent_ack_eliciting_packet in
-     draft-ietf-quic-recovery-23. */
-  ngtcp2_tstamp last_tx_pkt_ts;
+     draft-ietf-quic-recovery-25.  It is indexed by
+     ngtcp2_crypto_level.  No last_tx_pkt_ts for 0RTT packet. */
+  ngtcp2_tstamp last_tx_pkt_ts[3];
 } ngtcp2_rcvry_stat;
 
 typedef struct ngtcp2_cc_stat {
@@ -835,29 +852,8 @@ NGTCP2_EXTERN ngtcp2_ssize ngtcp2_pkt_decode_hd_short(ngtcp2_pkt_hd *dest,
  *     :macro:`NGTCP2_MIN_STATELESS_RETRY_RANDLEN`.
  */
 NGTCP2_EXTERN ngtcp2_ssize ngtcp2_pkt_write_stateless_reset(
-    uint8_t *dest, size_t destlen, uint8_t *stateless_reset_token,
-    uint8_t *rand, size_t randlen);
-
-/**
- * @function
- *
- * `ngtcp2_pkt_write_retry` writes Retry packet in the buffer pointed
- * by |dest| whose length is |destlen|.  |hd| must be long packet
- * header, and its type must be :enum:`NGTCP2_PKT_RETRY`.  |odcid|
- * specifies Original Destination Connection ID.  |token| specifies
- * Retry Token, and |tokenlen| specifies its length.
- *
- * This function returns the number of bytes written to the buffer, or
- * one of the following negative error codes:
- *
- * :enum:`NGTCP2_ERR_NOBUF`
- *     Buffer is too small.
- */
-NGTCP2_EXTERN ngtcp2_ssize ngtcp2_pkt_write_retry(uint8_t *dest, size_t destlen,
-                                                  const ngtcp2_pkt_hd *hd,
-                                                  const ngtcp2_cid *odcid,
-                                                  const uint8_t *token,
-                                                  size_t tokenlen);
+    uint8_t *dest, size_t destlen, const uint8_t *stateless_reset_token,
+    const uint8_t *rand, size_t randlen);
 
 /**
  * @function
@@ -1013,6 +1009,19 @@ typedef int (*ngtcp2_handshake_completed)(ngtcp2_conn *conn, void *user_data);
 /**
  * @functypedef
  *
+ * :type:`ngtcp2_handshake_confirmed` is invoked when QUIC
+ * cryptographic handshake is confirmed.  The handshake confirmation
+ * means that both endpoints agree that handshake has finished.
+ *
+ * The callback function must return 0 if it succeeds.  Returning
+ * :enum:`NGTCP2_ERR_CALLBACK_FAILURE` makes the library call return
+ * immediately.
+ */
+typedef int (*ngtcp2_handshake_confirmed)(ngtcp2_conn *conn, void *user_data);
+
+/**
+ * @functypedef
+ *
  * :type:`ngtcp2_recv_version_negotiation` is invoked when Version
  * Negotiation packet is received.  |hd| is the pointer to the QUIC
  * packet header object.  The vector |sv| of |nsv| elements contains
@@ -1071,12 +1080,10 @@ typedef int (*ngtcp2_recv_retry)(ngtcp2_conn *conn, const ngtcp2_pkt_hd *hd,
  * :enum:`NGTCP2_ERR_CALLBACK_FAILURE` which makes the library call
  * return immediately.
  */
-typedef int (*ngtcp2_encrypt)(ngtcp2_conn *conn, uint8_t *dest,
-                              const ngtcp2_crypto_aead *aead,
+typedef int (*ngtcp2_encrypt)(uint8_t *dest, const ngtcp2_crypto_aead *aead,
                               const uint8_t *plaintext, size_t plaintextlen,
                               const uint8_t *key, const uint8_t *nonce,
-                              size_t noncelen, const uint8_t *ad, size_t adlen,
-                              void *user_data);
+                              size_t noncelen, const uint8_t *ad, size_t adlen);
 
 /**
  * @functypedef
@@ -1100,12 +1107,10 @@ typedef int (*ngtcp2_encrypt)(ngtcp2_conn *conn, uint8_t *dest,
  * any other errors, return :enum:`NGTCP2_ERR_CALLBACK_FAILURE` which
  * makes the library call return immediately.
  */
-typedef int (*ngtcp2_decrypt)(ngtcp2_conn *conn, uint8_t *dest,
-                              const ngtcp2_crypto_aead *aead,
+typedef int (*ngtcp2_decrypt)(uint8_t *dest, const ngtcp2_crypto_aead *aead,
                               const uint8_t *ciphertext, size_t ciphertextlen,
                               const uint8_t *key, const uint8_t *nonce,
-                              size_t noncelen, const uint8_t *ad, size_t adlen,
-                              void *user_data);
+                              size_t noncelen, const uint8_t *ad, size_t adlen);
 
 /**
  * @functypedef
@@ -1124,10 +1129,8 @@ typedef int (*ngtcp2_decrypt)(ngtcp2_conn *conn, uint8_t *dest,
  *  :enum:`NGTCP2_ERR_CALLBACK_FAILURE` which makes the library call
  *  return immediately.
  */
-typedef int (*ngtcp2_hp_mask)(ngtcp2_conn *conn, uint8_t *dest,
-                              const ngtcp2_crypto_cipher *hp,
-                              const uint8_t *hp_key, const uint8_t *sample,
-                              void *user_data);
+typedef int (*ngtcp2_hp_mask)(uint8_t *dest, const ngtcp2_crypto_cipher *hp,
+                              const uint8_t *hp_key, const uint8_t *sample);
 
 /**
  * @functypedef
@@ -1340,21 +1343,29 @@ typedef int (*ngtcp2_remove_connection_id)(ngtcp2_conn *conn,
  * @functypedef
  *
  * :type:`ngtcp2_update_key` is a callback function which tells the
- * application that it must generate new packet protection keys.
+ * application that it must generate new packet protection keying
+ * materials.  The current set of secrets are given as
+ * |current_rx_secret| and |current_tx_secret| of length |secretlen|.
+ * They are decryption and encryption secrets respectively.
  *
- * The application has to generate new keys for both encryption and
- * decryption, and write decryption key and IV to the buffer pointed
- * by |rx_key| and |rx_iv| respectively.  Similarly, write encryption
- * key and IV to the buffer pointed by |tx_key| and |tx_iv|.  All
- * given buffers have the enough capacity to store key and IV.
+ * The application has to generate new secrets and keys for both
+ * encryption and decryption, and write decryption secret, key and IV
+ * to the buffer pointed by |rx_secret|, |rx_key| and |rx_iv|
+ * respectively.  Similarly, write encryption secret, key and IV to
+ * the buffer pointed by |tx_secret|, |tx_key| and |tx_iv|.  All given
+ * buffers have the enough capacity to store secret, key and IV.
  *
  * The callback function must return 0 if it succeeds.  Returning
  * :enum:`NGTCP2_ERR_CALLBACK_FAILURE` makes the library call return
  * immediately.
  */
-typedef int (*ngtcp2_update_key)(ngtcp2_conn *conn, uint8_t *rx_key,
+typedef int (*ngtcp2_update_key)(ngtcp2_conn *conn, uint8_t *rx_secret,
+                                 uint8_t *tx_secret, uint8_t *rx_key,
                                  uint8_t *rx_iv, uint8_t *tx_key,
-                                 uint8_t *tx_iv, void *user_data);
+                                 uint8_t *tx_iv,
+                                 const uint8_t *current_rx_secret,
+                                 const uint8_t *current_tx_secret,
+                                 size_t secretlen, void *user_data);
 
 /**
  * @functypedef
@@ -1394,6 +1405,37 @@ typedef int (*ngtcp2_select_preferred_addr)(ngtcp2_conn *conn,
                                             ngtcp2_addr *dest,
                                             const ngtcp2_preferred_addr *paddr,
                                             void *user_data);
+
+typedef enum ngtcp2_connection_id_status_type {
+  /* NGTCP2_CONNECTION_ID_STATUS_TYPE_ACTIVATE indicates that a local
+     endpoint starts using new destination Connection ID. */
+  NGTCP2_CONNECTION_ID_STATUS_TYPE_ACTIVATE,
+  /* NGTCP2_CONNECTION_ID_STATUS_TYPE_DEACTIVATE indicates that a
+     local endpoint stops using a given destination Connection ID. */
+  NGTCP2_CONNECTION_ID_STATUS_TYPE_DEACTIVATE
+} ngtcp2_connection_id_status_type;
+
+/**
+ * @functypedef
+ *
+ * :type:`ngtcp2_connection_id_status` is a callback function which is
+ * called when the status of Connection ID changes.
+ *
+ * |token| is the associated stateless reset token and it is NULL if
+ * no token is present.
+ *
+ * |type| is the one of the value defined in
+ * :enum:`ngtcp2_connection_id_status_type`.  The new value might be
+ * added in the future release.
+ *
+ * The callback function must return 0 if it succeeds.  Returning
+ * :enum:`NGTCP2_ERR_CALLBACK_FAILURE` makes the library call return
+ * immediately.
+ */
+typedef int (*ngtcp2_connection_id_status)(ngtcp2_conn *conn, int type,
+                                           uint64_t seq, const ngtcp2_cid *cid,
+                                           const uint8_t *token,
+                                           void *user_data);
 
 typedef struct ngtcp2_conn_callbacks {
   /**
@@ -1563,9 +1605,73 @@ typedef struct ngtcp2_conn_callbacks {
    * is increased.  This callback function is optional.
    */
   ngtcp2_extend_max_stream_data extend_max_stream_data;
+  /**
+   * dcid_status is a callback function which is invoked when the new
+   * destination Connection ID is activated or the activated
+   * destination Connection ID is now deactivated.
+   */
+  ngtcp2_connection_id_status dcid_status;
+  /**
+   * handshake_confirmed is a callback function which is invoked when
+   * both endpoints agree that handshake has finished.  This field is
+   * ignored by server because handshake_completed indicates the
+   * handshake confirmation for server.
+   */
+  ngtcp2_handshake_confirmed handshake_confirmed;
 } ngtcp2_conn_callbacks;
 
-/*
+/**
+ * @function
+ *
+ * `ngtcp2_pkt_write_connection_close` writes Initial packet
+ * containing CONNECTION_CLOSE frame with the given |error_code| to
+ * the buffer pointed by |dest| of length |destlen|.  All encryption
+ * parameters are for Initial packet encryption.  The packet number is
+ * always 0.
+ *
+ * The primary use case of this function is for server to send
+ * CONNECTION_CLOSE frame in Initial packet to close connection
+ * without committing the state when validating Retry token fails.
+ *
+ * This function returns the number of bytes written if it succeeds,
+ * or one of the following negative error codes:
+ *
+ * :enum:`NGTCP2_ERR_NOBUF`
+ *     Buffer is too small.
+ * :enum:`NGTCP2_ERR_CALLBACK_FAILURE
+ *     Callback function failed.
+ */
+NGTCP2_EXTERN ngtcp2_ssize ngtcp2_pkt_write_connection_close(
+    uint8_t *dest, size_t destlen, const ngtcp2_cid *dcid,
+    const ngtcp2_cid *scid, uint64_t error_code, ngtcp2_encrypt encrypt,
+    const ngtcp2_crypto_aead *aead, const uint8_t *key, const uint8_t *iv,
+    ngtcp2_hp_mask hp_mask, const ngtcp2_crypto_cipher *hp,
+    const uint8_t *hp_key);
+
+/**
+ * @function
+ *
+ * `ngtcp2_pkt_write_retry` writes Retry packet in the buffer pointed
+ * by |dest| whose length is |destlen|.  |odcid| specifies Original
+ * Destination Connection ID.  |token| specifies Retry Token, and
+ * |tokenlen| specifies its length.  |aead| must be AEAD_AES_128_GCM.
+ *
+ * This function returns the number of bytes written to the buffer, or
+ * one of the following negative error codes:
+ *
+ * :enum:`NGTCP2_ERR_NOBUF`
+ *     Buffer is too small.
+ * :enum:`NGTCP2_ERR_CALLBACK_FAILURE
+ *     Callback function failed.
+ */
+NGTCP2_EXTERN ngtcp2_ssize ngtcp2_pkt_write_retry(
+    uint8_t *dest, size_t destlen, const ngtcp2_cid *dcid,
+    const ngtcp2_cid *scid, const ngtcp2_cid *odcid, const uint8_t *token,
+    size_t tokenlen, ngtcp2_encrypt encrypt, const ngtcp2_crypto_aead *aead);
+
+/**
+ * @function
+ *
  * `ngtcp2_accept` is used by server implementation, and decides
  * whether packet |pkt| of length |pktlen| is acceptable for initial
  * packet from client.
@@ -1659,7 +1765,10 @@ NGTCP2_EXTERN void ngtcp2_conn_del(ngtcp2_conn *conn);
  * connection using `ngtcp2_conn_del`.  It is undefined to call the
  * other library functions.  If :enum:`NGTCP2_ERR_RETRY` is returned,
  * application must be a server and it must perform address validation
- * by sending Retry packet and close the connection.
+ * by sending Retry packet and close the connection.  If
+ * :enum:`NGTCP2_ERR_DROP_CONN` is returned, server application must
+ * drop the connection silently (without sending any CONNECTION_CLOSE
+ * frame) and discard connection state.
  */
 NGTCP2_EXTERN int ngtcp2_conn_read_pkt(ngtcp2_conn *conn,
                                        const ngtcp2_path *path,
@@ -1723,13 +1832,11 @@ NGTCP2_EXTERN int ngtcp2_conn_install_initial_key(
 /**
  * @function
  *
- * `ngtcp2_conn_install_handshake_key` installs packet protection
- * keying materials for Handshake packets.  |rx_key| of length
- * |keylen|, IV |rx_iv| of length |rx_ivlen|, and packet header
- * protection key |rx_hp_key| of length |keylen| to decrypt incoming
- * Handshake packets.  Similarly, |tx_key|, |tx_iv| and |tx_hp_key|
- * are for encrypt outgoing packets and are the same length with the
- * rx counterpart.
+ * `ngtcp2_conn_install_rx_handshake_key` installs packet protection
+ * keying materials for decrypting incoming Handshake packets.  |key|
+ * of length |keylen|, IV |iv| of length |ivlen|, and packet header
+ * protection key |hp_key| of length |keylen| to decrypt incoming
+ * Handshake packets.
  *
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
@@ -1737,10 +1844,30 @@ NGTCP2_EXTERN int ngtcp2_conn_install_initial_key(
  * :enum:`NGTCP2_ERR_NOMEM`
  *     Out of memory.
  */
-NGTCP2_EXTERN int ngtcp2_conn_install_handshake_key(
-    ngtcp2_conn *conn, const uint8_t *rx_key, const uint8_t *rx_iv,
-    const uint8_t *rx_hp_key, const uint8_t *tx_key, const uint8_t *tx_iv,
-    const uint8_t *tx_hp_key, size_t keylen, size_t ivlen);
+NGTCP2_EXTERN int
+ngtcp2_conn_install_rx_handshake_key(ngtcp2_conn *conn, const uint8_t *key,
+                                     const uint8_t *iv, const uint8_t *hp_key,
+                                     size_t keylen, size_t ivlen);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_install_tx_handshake_key` installs packet protection
+ * keying materials for encrypting outgoing Handshake packets.  |key|
+ * of length |keylen|, IV |iv| of length |ivlen|, and packet header
+ * protection key |hp_key| of length |keylen| to encrypt outgoing
+ * Handshake packets.
+ *
+ * This function returns 0 if it succeeds, or one of the following
+ * negative error codes:
+ *
+ * :enum:`NGTCP2_ERR_NOMEM`
+ *     Out of memory.
+ */
+NGTCP2_EXTERN int
+ngtcp2_conn_install_tx_handshake_key(ngtcp2_conn *conn, const uint8_t *key,
+                                     const uint8_t *iv, const uint8_t *hp_key,
+                                     size_t keylen, size_t ivlen);
 
 /**
  * @function
@@ -1785,12 +1912,12 @@ NGTCP2_EXTERN int ngtcp2_conn_install_early_key(ngtcp2_conn *conn,
 /**
  * @function
  *
- * `ngtcp2_conn_install_key` installs packet protection keying
- * materials for Short packets.  |rx_key| of length |keylen|, IV
- * |rx_iv| of length |rx_ivlen|, and packet header protection key
- * |rx_hp_key| of length |keylen| to decrypt incoming Short packets.
- * Similarly, |tx_key|, |tx_iv| and |tx_hp_key| are for encrypt
- * outgoing packets and are the same length with the rx counterpart.
+ * `ngtcp2_conn_install_rx_key` installs packet protection keying
+ * materials for decrypting Short packets.  |secret| of length
+ * |secretlen| is the decryption secret which is used to derive keying
+ * materials passed to this function.  |key| of length |keylen|, IV
+ * |iv| of length |ivlen|, and packet header protection key |hp_key|
+ * of length |keylen| to decrypt incoming Short packets.
  *
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
@@ -1799,10 +1926,32 @@ NGTCP2_EXTERN int ngtcp2_conn_install_early_key(ngtcp2_conn *conn,
  *     Out of memory.
  */
 NGTCP2_EXTERN int
-ngtcp2_conn_install_key(ngtcp2_conn *conn, const uint8_t *rx_key,
-                        const uint8_t *rx_iv, const uint8_t *rx_hp_key,
-                        const uint8_t *tx_key, const uint8_t *tx_iv,
-                        const uint8_t *tx_hp_key, size_t keylen, size_t ivlen);
+ngtcp2_conn_install_rx_key(ngtcp2_conn *conn, const uint8_t *secret,
+                           const uint8_t *key, const uint8_t *iv,
+                           const uint8_t *hp_key, size_t secretlen,
+                           size_t keylen, size_t ivlen);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_install_tx_key` installs packet protection keying
+ * materials for encrypting Short packets.  |secret| of length
+ * |secretlen| is the encryption secret which is used to derive keying
+ * materials passed to this function.  |key| of length |keylen|, IV
+ * |iv| of length |ivlen|, and packet header protection key |hp_key|
+ * of length |keylen| to encrypt outgoing Short packets.
+ *
+ * This function returns 0 if it succeeds, or one of the following
+ * negative error codes:
+ *
+ * :enum:`NGTCP2_ERR_NOMEM`
+ *     Out of memory.
+ */
+NGTCP2_EXTERN int
+ngtcp2_conn_install_tx_key(ngtcp2_conn *conn, const uint8_t *secret,
+                           const uint8_t *key, const uint8_t *iv,
+                           const uint8_t *hp_key, size_t secretlen,
+                           size_t keylen, size_t ivlen);
 
 /**
  * @function
@@ -1818,6 +1967,27 @@ ngtcp2_conn_install_key(ngtcp2_conn *conn, const uint8_t *rx_key,
  */
 NGTCP2_EXTERN int ngtcp2_conn_initiate_key_update(ngtcp2_conn *conn,
                                                   ngtcp2_tstamp ts);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_set_tls_error` sets the TLS related error in |conn|.
+ * In general, error code should be propagated via return value, but
+ * sometimes ngtcp2 API is called inside callback function of TLS
+ * stack and it does not allow to return ngtcp2 error code directly.
+ * In this case, implementation can set the error code (e.g.,
+ * NGTCP2_ERR_MALFORMED_TRANSPORT_PARAM) using this function.
+ */
+NGTCP2_EXTERN void ngtcp2_conn_set_tls_error(ngtcp2_conn *conn, int liberr);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_get_tls_error` returns the value set by
+ * `ngtcp2_conn_set_tls_error`.  If no value is set, this function
+ * returns 0.
+ */
+NGTCP2_EXTERN int ngtcp2_conn_get_tls_error(ngtcp2_conn *conn);
 
 /**
  * @function
@@ -1858,7 +2028,7 @@ NGTCP2_EXTERN ngtcp2_tstamp ngtcp2_conn_get_expiry(ngtcp2_conn *conn);
 /**
  * @function
  *
- * `ngtcp2_conn_handle_expiry` handles expired timer.  It do nothing
+ * `ngtcp2_conn_handle_expiry` handles expired timer.  It does nothing
  * if timer is not expired.
  */
 NGTCP2_EXTERN int ngtcp2_conn_handle_expiry(ngtcp2_conn *conn,
@@ -2129,14 +2299,15 @@ NGTCP2_EXTERN ngtcp2_ssize ngtcp2_conn_write_stream(
  * - The function returns the written length of packet just like
  *   without :enum:`NGTCP2_WRITE_STREAM_FLAG_MORE`.  This is because
  *   packet is nearly full and the library decided to make a complete
- *   packet.
+ *   packet.  In this case, |*pdatalen| == -1 is asserted.
  *
- * - The function returns :enum:`NGTCP2_ERR_WRITE_STREAM_MORE`.  This
- *   indicates that application can call this function with different
- *   stream data to pack them into the same packet.  Application has
- *   to specify the same |conn|, |path|, |dest|, |destlen|,
- *   |pdatalen|, and |ts| parameters, otherwise the behaviour is
- *   undefined.  The application can change |flags|.
+ * - The function returns :enum:`NGTCP2_ERR_WRITE_STREAM_MORE`.  In
+ *   this case, |*pdatalen| >= 0 is asserted.  This indicates that
+ *   application can call this function with different stream data to
+ *   pack them into the same packet.  Application has to specify the
+ *   same |conn|, |path|, |dest|, |destlen|, |pdatalen|, and |ts|
+ *   parameters, otherwise the behaviour is undefined.  The
+ *   application can change |flags|.
  *
  * - The function returns :enum:`NGTCP2_ERR_STREAM_DATA_BLOCKED` which
  *   indicates that stream is blocked because of flow control.
@@ -2150,7 +2321,8 @@ NGTCP2_EXTERN ngtcp2_ssize ngtcp2_conn_write_stream(
  * `ngtcp2_conn_write_application_close` to handle error from this
  * function).  Just keep calling `ngtcp2_conn_writev_stream` or
  * `ngtcp2_conn_write_pkt` until it returns a positive number (which
- * indicates a complete packet is ready).
+ * indicates a complete packet is ready).  If |*pdatalen| >= 0, the
+ * function always return :enum:`NGTCP2_ERR_WRITE_STREAM_MORE`.
  *
  * This function returns 0 if it cannot write any frame because buffer
  * is too small, or packet is congestion limited.  Application should
@@ -2305,6 +2477,35 @@ NGTCP2_EXTERN void ngtcp2_conn_extend_max_offset(ngtcp2_conn *conn,
 /**
  * @function
  *
+ * `ngtcp2_conn_extend_max_streams_bidi` extends the number of maximum
+ * local bidirectional streams that a remote endpoint can open by |n|.
+ *
+ * The library does not increase maximum stream limit automatically.
+ * The exception is when a stream is closed without
+ * :type:`ngtcp2_stream_open` callback being called.  In this case,
+ * stream limit is increased automatically.
+ */
+NGTCP2_EXTERN void ngtcp2_conn_extend_max_streams_bidi(ngtcp2_conn *conn,
+                                                       size_t n);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_extend_max_streams_uni` extends the number of maximum
+ * local unidirectional streams that a remote endpoint can open by
+ * |n|.
+ *
+ * The library does not increase maximum stream limit automatically.
+ * The exception is when a stream is closed without
+ * :type:`ngtcp2_stream_open` callback being called.  In this case,
+ * stream limit is increased automatically.
+ */
+NGTCP2_EXTERN void ngtcp2_conn_extend_max_streams_uni(ngtcp2_conn *conn,
+                                                      size_t n);
+
+/**
+ * @function
+ *
  * `ngtcp2_conn_get_bytes_in_flight` returns the number of bytes which
  * is the sum of outgoing QUIC packet length in flight.  This does not
  * include a packet which only includes ACK frames.
@@ -2339,6 +2540,45 @@ NGTCP2_EXTERN size_t ngtcp2_conn_get_num_scid(ngtcp2_conn *conn);
  * value of `ngtcp2_conn_get_num_scid()`.
  */
 NGTCP2_EXTERN size_t ngtcp2_conn_get_scid(ngtcp2_conn *conn, ngtcp2_cid *dest);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_get_num_active_dcid` returns the number of the active
+ * destination connection ID.
+ */
+NGTCP2_EXTERN size_t ngtcp2_conn_get_num_active_dcid(ngtcp2_conn *conn);
+
+/**
+ * @struct
+ *
+ * :type:`ngtcp2_cid_token` is the convenient struct to store
+ * Connection ID, its associated path, and stateless reset token.
+ */
+typedef struct ngtcp2_cid_token {
+  /* seq is the sequence number of this Connection ID. */
+  uint64_t seq;
+  /* cid is Connection ID. */
+  ngtcp2_cid cid;
+  /* ps is the path which is associated to this Connection ID. */
+  ngtcp2_path_storage ps;
+  /* token is the stateless reset token for this Connection ID. */
+  uint8_t token[NGTCP2_STATELESS_RESET_TOKENLEN];
+  /* token_resent is nonzero if token contains stateless reset
+     token. */
+  uint8_t token_present;
+} ngtcp2_cid_token;
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_get_active_dcid` writes the all active destination
+ * connection IDs and tokens to |dest|.  The buffer pointed by |dest|
+ * must have ``sizeof(ngtcp2_cid_token) * n`` bytes available, where n
+ * is the return value of `ngtcp2_conn_get_num_active_dcid()`.
+ */
+NGTCP2_EXTERN size_t ngtcp2_conn_get_active_dcid(ngtcp2_conn *conn,
+                                                 ngtcp2_cid_token *dest);
 
 /**
  * @function
@@ -2480,6 +2720,24 @@ NGTCP2_EXTERN uint64_t ngtcp2_conn_get_max_data_left(ngtcp2_conn *conn);
 /**
  * @function
  *
+ * `ngtcp2_conn_get_streams_bidi_left` returns the number of
+ * bidirectional streams which the local endpoint can open without
+ * violating stream concurrency limit.
+ */
+NGTCP2_EXTERN uint64_t ngtcp2_conn_get_streams_bidi_left(ngtcp2_conn *conn);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_get_streams_uni_left` returns the number of
+ * unidirectional streams which the local endpoint can open without
+ * violating stream concurrency limit.
+ */
+NGTCP2_EXTERN uint64_t ngtcp2_conn_get_streams_uni_left(ngtcp2_conn *conn);
+
+/**
+ * @function
+ *
  * `ngtcp2_conn_set_initial_crypto_ctx` sets |ctx| for Initial packet
  * encryption.  The passed data will be passed to
  * :type:`ngtcp2_encrypt`, :type:`ngtcp2_decrypt` and
@@ -2509,6 +2767,17 @@ ngtcp2_conn_get_initial_crypto_ctx(ngtcp2_conn *conn);
  */
 NGTCP2_EXTERN void ngtcp2_conn_set_crypto_ctx(ngtcp2_conn *conn,
                                               const ngtcp2_crypto_ctx *ctx);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_set_retry_aead` sets |aead| for Retry integrity tag
+ * verification.  It must be AEAD_AES_128_GCM.  This function must be
+ * called if |conn| is initialized as client.  Server does not verify
+ * the tag and has no need to call this function.
+ */
+NGTCP2_EXTERN void ngtcp2_conn_set_retry_aead(ngtcp2_conn *conn,
+                                              const ngtcp2_crypto_aead *aead);
 
 /**
  * @function
@@ -2543,6 +2812,23 @@ typedef struct ngtcp2_connection_close_error_code {
  */
 NGTCP2_EXTERN void ngtcp2_conn_get_connection_close_error_code(
     ngtcp2_conn *conn, ngtcp2_connection_close_error_code *ccec);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_is_local_stream` returns nonzero if |stream_id| denotes the
+ * stream which a local endpoint issues.
+ */
+NGTCP2_EXTERN int ngtcp2_conn_is_local_stream(ngtcp2_conn *conn,
+                                              int64_t stream_id);
+
+/**
+ * @function
+ *
+ * `ngtcp2_conn_is_server` returns nonzero if |conn| is initialized as
+ * server.
+ */
+NGTCP2_EXTERN int ngtcp2_conn_is_server(ngtcp2_conn *conn);
 
 /**
  * @function
@@ -2657,6 +2943,14 @@ typedef struct ngtcp2_info {
  * return a ``NULL``.  Pass in 0 to skip the version checking.
  */
 NGTCP2_EXTERN ngtcp2_info *ngtcp2_version(int least_version);
+
+/**
+ * @function
+ *
+ * `ngtcp2_is_bidi_stream` returns nonzero if |stream_id| denotes
+ * bidirectional stream.
+ */
+NGTCP2_EXTERN int ngtcp2_is_bidi_stream(int64_t stream_id);
 
 #ifdef __cplusplus
 }

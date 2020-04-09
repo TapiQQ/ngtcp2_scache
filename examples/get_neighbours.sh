@@ -7,3 +7,4 @@ do
 	sudo sshfs -o allow_other,default_permissions quic@$line:/home/quic/cache/ /home/quic/mnt$n/
 	let n++
 done < "$input"
+
