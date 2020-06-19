@@ -1,3 +1,21 @@
+ngtcp2_scache - ngtcp2 edit by Tapio Särkkä
+
+Edited version of ngtcp2 program for my thesis "Session Migration in Edge Cloud"
+The edit adds an external caching module, which allows saving TLS session externally
+and automatically sharing them with other (ngtcp2_scache) servers. The purpose of this
+session migration is that a client can switch servers and resume their TLS session
+on the first connection (and thus is able to also use the 0-RTT feature of TLS 1.3 on
+the initial connection).
+
+In addition to everything mentioned in the readme below, this solution requires GDBM:
+https://www.gnu.org.ua/software/gdbm/
+
+The edited program is functional, but lacks a lot of polishing. I might work on this later
+if I'm interested, but the solution is viable enough for me as of now.
+
+Everything below this point in the readme is directly from the original repository:
+https://github.com/ngtcp2/ngtcp2
+
 ngtcp2
 ======
 
